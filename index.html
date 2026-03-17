@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Bike Stats Pro</title>
     
-    <link rel="apple-touch-icon" href="icon.png?v=4">
+    <link rel="apple-touch-icon" href="icon.png?v=5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <style>
         :root {
             --safe-bottom: env(safe-area-inset-bottom);
+            --safe-top: env(safe-area-inset-top);
         }
         body {
             font-family: -apple-system, system-ui, sans-serif;
@@ -21,15 +22,17 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
+            overflow: hidden; /* Blocca lo scroll principale del body */
         }
 
+        /* Navigazione Tab Fissa in basso */
         .nav-bar {
             display: flex;
             background: #1e1e1e;
             border-top: 1px solid #333;
             padding-bottom: var(--safe-bottom);
             flex-shrink: 0;
+            z-index: 100;
         }
         .nav-item {
             flex: 1;
@@ -48,50 +51,100 @@
         }
         #nav-water.active { color: #3498db; box-shadow: inset 0 4px 0 #3498db; }
 
+        /* Container principale */
         .container {
             flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
             display: flex;
             flex-direction: column;
+            overflow: hidden; /* Lo scroll sarà gestito internamente alle pagine */
         }
 
-        .page { display: none; width: 100%; max-width: 500px; margin: 0 auto; }
-        .page.active { display: block; }
+        .page { 
+            display: none; 
+            height: 100%;
+            width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
+            flex-direction: column;
+        }
+        .page.active { display: flex; }
 
+        /* MODIFICA PAGINA CIBO: TESTATA FISSA */
+        .sticky-header {
+            padding: 20px 20px 10px 20px;
+            background-color: #121212;
+            z-index: 10;
+            flex-shrink: 0;
+        }
+
+        /* Area che scorre nella pagina cibo */
+        .scrollable-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 20px 20px 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* MODIFICA PAGINA ACQUA: NO SCROLL */
+        #page-water {
+            overflow: hidden;
+            justify-content: center; /* Centra il contenuto verticalmente */
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* Elementi grafici */
         .display {
-            padding: 25px;
+            padding: 20px;
             border-radius: 25px;
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         .display.food { background: linear-gradient(145deg, #2ecc71, #27ae60); }
         .display.water { background: linear-gradient(145deg, #3498db, #2980b9); }
-        .val { font-size: 3.5rem; font-weight: 900; margin: 0; line-height: 1; }
-        .label { font-size: 0.75rem; text-transform: uppercase; opacity: 0.9; font-weight: bold; margin-bottom: 5px; }
+        .val { font-size: 3rem; font-weight: 900; margin: 0; line-height: 1; }
+        .label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.9; font-weight: bold; margin-bottom: 5px; }
 
+        /* Pulsanti riposizionati */
+        .header-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .btn-export { 
+            background: #f1c40f; color: #000; width: 100%; padding: 15px; 
+            border-radius: 15px; font-weight: 900; border: none; font-size: 1rem;
+            box-shadow: 0 3px 0 #d4ac0d;
+        }
+        .btn-reset { 
+            background: #333; color: #ff7675; width: 100%; padding: 10px; 
+            border-radius: 12px; font-weight: bold; border: 1px solid #444; 
+            font-size: 0.75rem; text-transform: uppercase;
+        }
+
+        /* Righe cibi */
         .row {
             display: flex;
             justify-content: space-between;
             align-items: center;
             background: #1e1e1e;
-            padding: 15px;
+            padding: 12px;
             border-radius: 18px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             border: 1px solid #333;
         }
+        .info b { font-size: 0.9rem; display: block; color: #fff; }
+        .info small { color: #888; font-size: 0.75rem; }
 
-        .info b { font-size: 1rem; display: block; color: #fff; }
-        .info small { color: #888; font-size: 0.8rem; }
-
-        .controls { display: flex; align-items: center; gap: 15px; }
-        .num { min-width: 30px; font-weight: 900; font-size: 1.5rem; color: #2ecc71; text-align: center; }
+        .controls { display: flex; align-items: center; gap: 12px; }
+        .num { min-width: 25px; font-weight: 900; font-size: 1.3rem; color: #2ecc71; text-align: center; }
 
         .btn {
-            border: none; width: 46px; height: 46px; border-radius: 14px; color: white;
-            display: flex; align-items: center; justify-content: center; font-size: 1.6rem;
+            border: none; width: 42px; height: 42px; border-radius: 12px; color: white;
+            display: flex; align-items: center; justify-content: center; font-size: 1.4rem;
             touch-action: manipulation; font-weight: bold;
         }
         .btn-p { background: #3498db; box-shadow: 0 3px 0 #2980b9; }
@@ -102,27 +155,8 @@
             display: flex; gap: 10px; width: 100%; justify-content: center; margin-top: 10px;
         }
         input {
-            background: #000; color: white; border: 2px solid #444; padding: 15px;
+            background: #000; color: white; border: 2px solid #444; padding: 12px;
             width: 80px; border-radius: 15px; text-align: center; font-size: 1.3rem; font-weight: bold;
-        }
-
-        .footer-actions {
-            margin-top: 20px;
-            padding-bottom: 40px;
-            width: 100%;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .btn-export { 
-            background: #f1c40f; color: #000; width: 100%; padding: 20px; 
-            border-radius: 20px; font-weight: 900; border: none; font-size: 1.2rem;
-            box-shadow: 0 4px 0 #d4ac0d; margin-bottom: 20px;
-        }
-        .btn-reset { 
-            background: #333; color: #ff7675; width: 100%; padding: 15px; 
-            border-radius: 15px; font-weight: bold; border: 1px solid #444; 
-            font-size: 0.9rem; text-transform: uppercase;
         }
     </style>
 </head>
@@ -130,11 +164,17 @@
 
 <div class="container">
     <div id="page-food" class="page active">
-        <div class="display food">
-            <div class="label">Calorie Totali</div>
-            <div class="val" id="kcalDisp">0</div>
+        <div class="sticky-header">
+            <div class="display food">
+                <div class="label">Calorie Totali</div>
+                <div class="val" id="kcalDisp">0</div>
+            </div>
+            <div class="header-actions">
+                <button class="btn-export" onclick="exportMail()">🚀 ESPORTA RIEPILOGO UNICO</button>
+                <button class="btn-reset" onclick="resetData()">↺ AZZERA TUTTI I DATI</button>
+            </div>
         </div>
-        <div id="snack-list"></div>
+        <div class="scrollable-content" id="snack-list"></div>
     </div>
 
     <div id="page-water" class="page">
@@ -142,18 +182,16 @@
             <div class="label">Liquidi (cl)</div>
             <div class="val" id="waterDisp">0</div>
         </div>
-        <div class="row" style="flex-direction: column; gap: 15px;">
+        <div class="row" style="flex-direction: column; gap: 15px; background: none; border: none;">
             <b style="font-size: 1.1rem; letter-spacing: 1px;">IDRATAZIONE</b>
             <div class="water-input-group">
                 <input type="number" id="wIn" placeholder="cl" inputmode="numeric">
                 <button class="btn" style="background:#2ecc71; width:auto; padding:0 30px; box-shadow: 0 4px 0 #27ae60;" onclick="addW()">OK</button>
             </div>
         </div>
-    </div>
-
-    <div class="footer-actions">
-        <button class="btn-export" onclick="exportMail()">🚀 ESPORTA RIEPILOGO UNICO</button>
-        <button class="btn-reset" onclick="resetData()">↺ AZZERA TUTTI I DATI</button>
+        <div style="margin-top: 30px;">
+            <button class="btn-export" onclick="exportMail()">🚀 ESPORTA UNICO</button>
+        </div>
     </div>
 </div>
 
@@ -209,9 +247,9 @@
     });
 
     function showPage(p) {
-        document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.page').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('page-'+p).classList.add('active');
+        document.getElementById('page-'+p).style.display = 'flex';
         document.getElementById('nav-'+p).classList.add('active');
     }
 
@@ -248,7 +286,7 @@
     }
 
     function resetData() {
-        if(confirm("Sei sicuro di voler AZZERARE tutti i dati memorizzati?")) {
+        if(confirm("Sei sicuro di voler AZZERARE tutto?")) {
             localStorage.removeItem('bike_counts');
             localStorage.removeItem('bike_water');
             counts = {};
