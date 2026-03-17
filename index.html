@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Bike Stats Pro</title>
     
-    <link rel="apple-touch-icon" href="icon.png?v=3">
+    <link rel="apple-touch-icon" href="icon.png?v=4">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -24,7 +24,6 @@
             overflow: hidden;
         }
 
-        /* Navigazione Tab */
         .nav-bar {
             display: flex;
             background: #1e1e1e;
@@ -107,10 +106,9 @@
             width: 80px; border-radius: 15px; text-align: center; font-size: 1.3rem; font-weight: bold;
         }
 
-        /* Area Azioni in fondo alla container */
         .footer-actions {
-            margin-top: auto;
-            padding: 20px 0;
+            margin-top: 20px;
+            padding-bottom: 40px;
             width: 100%;
             max-width: 500px;
             margin-left: auto;
@@ -122,9 +120,9 @@
             box-shadow: 0 4px 0 #d4ac0d; margin-bottom: 20px;
         }
         .btn-reset { 
-            background: #333; color: #ff7675; width: 100%; padding: 12px; 
+            background: #333; color: #ff7675; width: 100%; padding: 15px; 
             border-radius: 15px; font-weight: bold; border: 1px solid #444; 
-            font-size: 0.85rem; text-transform: uppercase;
+            font-size: 0.9rem; text-transform: uppercase;
         }
     </style>
 </head>
@@ -145,7 +143,7 @@
             <div class="val" id="waterDisp">0</div>
         </div>
         <div class="row" style="flex-direction: column; gap: 15px;">
-            <b style="font-size: 1.1rem; letter-spacing: 1px;">QUANTO HAI BEVUTO?</b>
+            <b style="font-size: 1.1rem; letter-spacing: 1px;">IDRATAZIONE</b>
             <div class="water-input-group">
                 <input type="number" id="wIn" placeholder="cl" inputmode="numeric">
                 <button class="btn" style="background:#2ecc71; width:auto; padding:0 30px; box-shadow: 0 4px 0 #27ae60;" onclick="addW()">OK</button>
@@ -167,14 +165,15 @@
 <script>
     const snacks = [
         {id:'foc', n:'FOCACCIA', k:320},
-        {id:'p-f', n:'PAPPONE FRUDIBOSCO', k:119},
+        {id:'p-f', n:'PAPPONE FRUTTIBOSCO', k:119},
         {id:'p-b', n:'PAPPONE BANANA', k:119},
         {id:'p-p', n:'PAPPONE PESCA', k:119},
         {id:'smu', n:'STARMICS-SMURFI', k:135},
-        {id:'bif', n:'BIFI', k:108}
+        {id:'bif', n:'BIFI', k:108},
+        {id:'bib-5', n:'BIBBITONE 500', k:62},
+        {id:'bib-7', n:'BIBBITONE 750', k:93}
     ];
 
-    // Caricamento persistente
     let counts = JSON.parse(localStorage.getItem('bike_counts')) || {};
     snacks.forEach(s => { if(counts[s.id] === undefined) counts[s.id] = 0; });
     let water = parseInt(localStorage.getItem('bike_water')) || 0;
@@ -196,7 +195,6 @@
         document.getElementById('waterDisp').innerText = water;
     }
 
-    // Generazione dinamica lista cibo
     const list = document.getElementById('snack-list');
     snacks.forEach(s => {
         list.innerHTML += `
@@ -257,11 +255,9 @@
             snacks.forEach(s => counts[s.id] = 0);
             water = 0;
             save();
-            alert("Dati azzerati correttamente.");
         }
     }
 
-    // Inizializza display al caricamento
     updateDisplay();
 </script>
 </body>
