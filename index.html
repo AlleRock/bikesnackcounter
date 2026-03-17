@@ -5,38 +5,86 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Bike Stats Pro</title>
     
-    <link rel="apple-touch-icon" href="icon.png?v=5">
+    <link rel="apple-touch-icon" href="icon.png?v=6">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <style>
         :root {
-            --safe-bottom: env(safe-area-inset-bottom);
             --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
         }
-        body {
-            font-family: -apple-system, system-ui, sans-serif;
+
+        /* BLOCCO TOTALE DELLO SCHERMO */
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden; /* Impedisce lo scroll di tutta la pagina */
             background-color: #121212;
             color: white;
-            margin: 0;
+            font-family: -apple-system, system-ui, sans-serif;
+            overscroll-behavior: none; /* Blocca il rimbalzo su iOS */
+        }
+
+        /* LAYOUT PRINCIPALE A TRE BLOCCHI */
+        .app-wrapper {
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden; /* Blocca lo scroll principale del body */
+            width: 100vw;
         }
 
-        /* Navigazione Tab Fissa in basso */
+        /* 1. TESTATA FISSA (Cibo e Acqua) */
+        .sticky-header {
+            flex-shrink: 0;
+            padding: calc(var(--safe-top) + 15px) 20px 10px 20px;
+            background: #121212;
+            z-index: 10;
+            touch-action: none; /* Impedisce trascinamenti accidentali */
+        }
+
+        /* 2. AREA CONTENUTO (L'unica che può scorrere) */
+        .main-content {
+            flex-grow: 1;
+            overflow: hidden; /* Il contenitore è fisso */
+            position: relative;
+        }
+
+        .page {
+            display: none;
+            height: 100%;
+            width: 100%;
+            flex-direction: column;
+        }
+
+        .page.active {
+            display: flex;
+        }
+
+        /* Scroll solo per la lista cibi */
+        .scrollable-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 0 20px 20px 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* 3. MENU NAVIGAZIONE FISSO */
         .nav-bar {
+            flex-shrink: 0;
             display: flex;
             background: #1e1e1e;
             border-top: 1px solid #333;
             padding-bottom: var(--safe-bottom);
-            flex-shrink: 0;
             z-index: 100;
+            touch-action: none;
         }
+
         .nav-item {
             flex: 1;
-            padding: 20px 10px;
+            padding: 20px 0;
             text-align: center;
             font-weight: 800;
             color: #555;
@@ -44,88 +92,39 @@
             font-size: 0.85rem;
             letter-spacing: 1px;
         }
+
         .nav-item.active {
             color: #2ecc71;
             background: #252525;
             box-shadow: inset 0 4px 0 #2ecc71;
         }
+
         #nav-water.active { color: #3498db; box-shadow: inset 0 4px 0 #3498db; }
 
-        /* Container principale */
-        .container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden; /* Lo scroll sarà gestito internamente alle pagine */
-        }
-
-        .page { 
-            display: none; 
-            height: 100%;
-            width: 100%;
-            max-width: 500px;
-            margin: 0 auto;
-            flex-direction: column;
-        }
-        .page.active { display: flex; }
-
-        /* MODIFICA PAGINA CIBO: TESTATA FISSA */
-        .sticky-header {
-            padding: 20px 20px 10px 20px;
-            background-color: #121212;
-            z-index: 10;
-            flex-shrink: 0;
-        }
-
-        /* Area che scorre nella pagina cibo */
-        .scrollable-content {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0 20px 20px 20px;
-            -webkit-overflow-scrolling: touch;
-        }
-
-        /* MODIFICA PAGINA ACQUA: NO SCROLL */
-        #page-water {
-            overflow: hidden;
-            justify-content: center; /* Centra il contenuto verticalmente */
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        /* Elementi grafici */
+        /* GRAFICA BOX E PULSANTI */
         .display {
             padding: 20px;
             border-radius: 25px;
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3);
         }
         .display.food { background: linear-gradient(145deg, #2ecc71, #27ae60); }
         .display.water { background: linear-gradient(145deg, #3498db, #2980b9); }
-        .val { font-size: 3rem; font-weight: 900; margin: 0; line-height: 1; }
-        .label { font-size: 0.7rem; text-transform: uppercase; opacity: 0.9; font-weight: bold; margin-bottom: 5px; }
-
-        /* Pulsanti riposizionati */
-        .header-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
         
+        .val { font-size: 2.8rem; font-weight: 900; margin: 0; line-height: 1; }
+        .label { font-size: 0.7rem; text-transform: uppercase; font-weight: bold; margin-bottom: 4px; opacity: 0.9; }
+
         .btn-export { 
             background: #f1c40f; color: #000; width: 100%; padding: 15px; 
             border-radius: 15px; font-weight: 900; border: none; font-size: 1rem;
-            box-shadow: 0 3px 0 #d4ac0d;
+            margin-bottom: 8px; box-shadow: 0 3px 0 #d4ac0d;
         }
         .btn-reset { 
-            background: #333; color: #ff7675; width: 100%; padding: 10px; 
-            border-radius: 12px; font-weight: bold; border: 1px solid #444; 
-            font-size: 0.75rem; text-transform: uppercase;
+            background: #333; color: #ff7675; width: 100%; padding: 8px; 
+            border-radius: 10px; font-weight: bold; border: 1px solid #444; font-size: 0.7rem;
         }
 
-        /* Righe cibi */
         .row {
             display: flex;
             justify-content: space-between;
@@ -136,7 +135,8 @@
             margin-bottom: 10px;
             border: 1px solid #333;
         }
-        .info b { font-size: 0.9rem; display: block; color: #fff; }
+
+        .info b { font-size: 0.9rem; display: block; }
         .info small { color: #888; font-size: 0.75rem; }
 
         .controls { display: flex; align-items: center; gap: 12px; }
@@ -149,55 +149,58 @@
         }
         .btn-p { background: #3498db; box-shadow: 0 3px 0 #2980b9; }
         .btn-m { background: #e74c3c; box-shadow: 0 3px 0 #c0392b; }
-        .btn:active { transform: translateY(2px); box-shadow: none; }
-        
-        .water-input-group {
-            display: flex; gap: 10px; width: 100%; justify-content: center; margin-top: 10px;
-        }
+
+        /* INPUT ACQUA */
         input {
-            background: #000; color: white; border: 2px solid #444; padding: 12px;
-            width: 80px; border-radius: 15px; text-align: center; font-size: 1.3rem; font-weight: bold;
+            background: #000; color: white; border: 2px solid #444; padding: 15px;
+            width: 80px; border-radius: 15px; text-align: center; font-size: 1.5rem; font-weight: bold;
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <div id="page-food" class="page active">
-        <div class="sticky-header">
+<div class="app-wrapper">
+    
+    <div class="sticky-header">
+        <div id="header-food">
             <div class="display food">
                 <div class="label">Calorie Totali</div>
                 <div class="val" id="kcalDisp">0</div>
             </div>
-            <div class="header-actions">
-                <button class="btn-export" onclick="exportMail()">🚀 ESPORTA RIEPILOGO UNICO</button>
-                <button class="btn-reset" onclick="resetData()">↺ AZZERA TUTTI I DATI</button>
+            <button class="btn-export" onclick="exportMail()">🚀 ESPORTA RIEPILOGO UNICO</button>
+            <button class="btn-reset" onclick="resetData()">↺ AZZERA TUTTI I DATI</button>
+        </div>
+        <div id="header-water" style="display:none">
+            <div class="display water">
+                <div class="label">Liquidi (cl)</div>
+                <div class="val" id="waterDisp">0</div>
             </div>
         </div>
-        <div class="scrollable-content" id="snack-list"></div>
     </div>
 
-    <div id="page-water" class="page">
-        <div class="display water">
-            <div class="label">Liquidi (cl)</div>
-            <div class="val" id="waterDisp">0</div>
+    <div class="main-content">
+        <div id="page-food" class="page active">
+            <div class="scrollable-list" id="snack-list">
+                </div>
         </div>
-        <div class="row" style="flex-direction: column; gap: 15px; background: none; border: none;">
-            <b style="font-size: 1.1rem; letter-spacing: 1px;">IDRATAZIONE</b>
-            <div class="water-input-group">
-                <input type="number" id="wIn" placeholder="cl" inputmode="numeric">
-                <button class="btn" style="background:#2ecc71; width:auto; padding:0 30px; box-shadow: 0 4px 0 #27ae60;" onclick="addW()">OK</button>
+
+        <div id="page-water" class="page" style="justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
+            <div style="text-align: center; width: 100%;">
+                <b style="font-size: 1.2rem; letter-spacing: 1px; display: block; margin-bottom: 20px;">AGGIUNGI BEVUTA</b>
+                <div style="display: flex; gap: 10px; justify-content: center;">
+                    <input type="number" id="wIn" placeholder="cl" inputmode="numeric">
+                    <button class="btn" style="background:#2ecc71; width:auto; padding:0 30px; box-shadow: 0 4px 0 #27ae60;" onclick="addW()">OK</button>
+                </div>
+                <button class="btn-export" style="margin-top: 50px;" onclick="exportMail()">🚀 ESPORTA RIEPILOGO</button>
             </div>
         </div>
-        <div style="margin-top: 30px;">
-            <button class="btn-export" onclick="exportMail()">🚀 ESPORTA UNICO</button>
-        </div>
     </div>
-</div>
 
-<div class="nav-bar">
-    <div class="nav-item active" id="nav-food" onclick="showPage('food')">Cibo</div>
-    <div class="nav-item" id="nav-water" onclick="showPage('water')">Acqua</div>
+    <div class="nav-bar">
+        <div class="nav-item active" id="nav-food" onclick="showPage('food')">Cibo</div>
+        <div class="nav-item" id="nav-water" onclick="showPage('water')">Acqua</div>
+    </div>
+
 </div>
 
 <script>
@@ -247,10 +250,19 @@
     });
 
     function showPage(p) {
-        document.querySelectorAll('.page').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-        document.getElementById('page-'+p).style.display = 'flex';
+        document.getElementById('page-'+p).classList.add('active');
         document.getElementById('nav-'+p).classList.add('active');
+
+        // Gestione testata
+        if(p === 'food') {
+            document.getElementById('header-food').style.display = 'block';
+            document.getElementById('header-water').style.display = 'none';
+        } else {
+            document.getElementById('header-food').style.display = 'none';
+            document.getElementById('header-water').style.display = 'block';
+        }
     }
 
     function change(id, d) {
@@ -272,27 +284,16 @@
     function exportMail() {
         let tk = document.getElementById('kcalDisp').innerText;
         let detail = "";
-        snacks.forEach(s => { 
-            if(counts[s.id]>0) detail += `- ${s.n}: ${counts[s.id]}%0A`; 
-        });
-
+        snacks.forEach(s => { if(counts[s.id]>0) detail += `- ${s.n}: ${counts[s.id]}%0A`; });
         const subject = encodeURIComponent("Bike Stats Pro - Report");
-        let body = `RIEPILOGO ATTIVITA%0A---------------------%0A`;
-        body += `ENERGIA: ${tk} kcal%0A`;
-        body += `LIQUIDI: ${water} cl%0A%0A`;
-        body += `DETTAGLIO CONSUMI:%0A${detail}`;
-        
+        let body = `RIEPILOGO ATTIVITA%0A---------------------%0AENERGIA: ${tk} kcal%0ALIQUIDI: ${water} cl%0A%0ADETTAGLIO CONSUMI:%0A${detail}`;
         window.location.href = `mailto:m8online@gmail.com?subject=${subject}&body=${body}`;
     }
 
     function resetData() {
         if(confirm("Sei sicuro di voler AZZERARE tutto?")) {
-            localStorage.removeItem('bike_counts');
-            localStorage.removeItem('bike_water');
-            counts = {};
-            snacks.forEach(s => counts[s.id] = 0);
-            water = 0;
-            save();
+            localStorage.clear();
+            location.reload();
         }
     }
 
