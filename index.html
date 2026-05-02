@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Bike Stats Pro</title>
+    <title>Bike Snack Pro</title>
     
     <link rel="apple-touch-icon" href="icon.png?v=7">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -280,7 +280,7 @@
         let tk = document.getElementById('kcalDisp').innerText;
         let detail = "";
         snacks.forEach(s => { if(counts[s.id]>0) detail += `- ${s.n}: ${counts[s.id]}%0A`; });
-        const subject = encodeURIComponent("Bike Stats Pro - Report");
+        const subject = encodeURIComponent("Bike Snack Pro - Report");
         let body = `RIEPILOGO ATTIVITA%0A---------------------%0AENERGIA: ${tk} kcal%0ALIQUIDI: ${water} cl%0A%0ADETTAGLIO CONSUMI:%0A${detail}`;
         window.location.href = `mailto:m8online@gmail.com?subject=${subject}&body=${body}`;
     }
