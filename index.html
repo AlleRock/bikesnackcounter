@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Bike Snack Pro</title>
+    <title>Bike Stats Pro</title>
     
     <link rel="apple-touch-icon" href="icon.png?v=7">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -179,15 +179,16 @@
             <div class="scrollable-list" id="snack-list"></div>
         </div>
 
-        <div id="page-water" class="page" style="justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;">
-            <div style="text-align: center; width: 100%;">
+        <div id="page-water" class="page" style="padding: 20px; box-sizing: border-box;">
+            <div style="text-align: center; width: 100%; flex-shrink: 0;">
                 <b style="font-size: 1.2rem; letter-spacing: 1px; display: block; margin-bottom: 20px;">AGGIUNGI BEVUTA</b>
                 <div style="display: flex; gap: 10px; justify-content: center;">
                     <input type="number" id="wIn" placeholder="cl" inputmode="numeric">
                     <button class="btn" style="background:#2ecc71; width:auto; padding:0 30px; box-shadow: 0 4px 0 #27ae60;" onclick="addW()">OK</button>
                 </div>
-                <button class="btn-export" style="margin-top: 50px;" onclick="exportMail()">🚀 ESPORTA RIEPILOGO</button>
+                <button class="btn-export" style="margin-top: 20px;" onclick="exportMail()">🚀 ESPORTA RIEPILOGO</button>
             </div>
+            <div class="scrollable-list" id="water-list" style="padding: 0; margin-top: 15px;"></div>
         </div>
     </div>
 
@@ -201,10 +202,8 @@
 <script>
     const snacks = [
         {id:'foc', n:'FOCACCIA', k:320},
-        {id:'p-f', n:'PAPPONE FRUDIBOSCO', k:119},
-        {id:'p-b', n:'PAPPONE BANANA', k:119},
-        {id:'p-p', n:'PAPPONE PESCA', k:119},
-        {id:'p-fi', n:'PAPPONE FICELE', k:119},
+        {id:'p-e', n:'PAPPONE ENERGY', k:119},
+        {id:'p-t', n:'PAPPONE TOTAL', k:125},
         {id:'smu', n:'STARMICS-SMURFI', k:135},
         {id:'bif', n:'BIFI', k:108},
         {id:'bib-5', n:'BIBBITONE 500', k:62},
@@ -212,12 +211,23 @@
     ];
 
     let counts = JSON.parse(localStorage.getItem('bike_counts')) || {};
+    // Migrazione: unifica vecchie varianti PAPPONE in PAPPONE ENERGY (p-e)
+    const oldPappone = ['p-f','p-b','p-p','p-fi'];
+    let pMerged = 0;
+    oldPappone.forEach(id => { if(counts[id] !== undefined) { pMerged += counts[id]; delete counts[id]; } });
+    if(pMerged > 0) { counts['p-e'] = (counts['p-e']||0) + pMerged; }
     snacks.forEach(s => { if(counts[s.id] === undefined) counts[s.id] = 0; });
-    let water = parseInt(localStorage.getItem('bike_water')) || 0;
+    let waterLog = JSON.parse(localStorage.getItem('bike_water_log'));
+    if(waterLog === null) {
+        // Migrazione dal vecchio totale unico (bike_water) a log di voci singole
+        let oldTotal = parseInt(localStorage.getItem('bike_water')) || 0;
+        waterLog = oldTotal > 0 ? [{id: Date.now(), v: oldTotal}] : [];
+    }
+    let water = 0;
 
     function save() {
         localStorage.setItem('bike_counts', JSON.stringify(counts));
-        localStorage.setItem('bike_water', water);
+        localStorage.setItem('bike_water_log', JSON.stringify(waterLog));
         updateDisplay();
     }
 
@@ -229,7 +239,27 @@
             tk += (counts[s.id] * s.k);
         });
         document.getElementById('kcalDisp').innerText = tk;
+
+        water = waterLog.reduce((a, e) => a + e.v, 0);
         document.getElementById('waterDisp').innerText = water;
+        renderWaterList();
+    }
+
+    function renderWaterList() {
+        const wl = document.getElementById('water-list');
+        if(!wl) return;
+        if(waterLog.length === 0) {
+            wl.innerHTML = '<div style="text-align:center; color:#555; font-size:0.8rem; margin-top:15px;">Nessuna bevuta inserita</div>';
+            return;
+        }
+        wl.innerHTML = '';
+        waterLog.slice().reverse().forEach(e => {
+            wl.innerHTML += `
+                <div class="row">
+                    <div class="info"><b>${e.v} cl</b></div>
+                    <button class="btn btn-m" onclick="delW(${e.id})">✕</button>
+                </div>`;
+        });
     }
 
     const list = document.getElementById('snack-list');
@@ -269,18 +299,23 @@
     function addW() {
         let v = parseInt(document.getElementById('wIn').value);
         if(v) { 
-            water += v; 
+            waterLog.push({id: Date.now(), v: v});
             document.getElementById('wIn').value=''; 
             document.getElementById('wIn').blur(); 
             save(); 
         }
     }
 
+    function delW(id) {
+        waterLog = waterLog.filter(e => e.id !== id);
+        save();
+    }
+
     function exportMail() {
         let tk = document.getElementById('kcalDisp').innerText;
         let detail = "";
         snacks.forEach(s => { if(counts[s.id]>0) detail += `- ${s.n}: ${counts[s.id]}%0A`; });
-        const subject = encodeURIComponent("Bike Snack Pro - Report");
+        const subject = encodeURIComponent("Bike Stats Pro - Report");
         let body = `RIEPILOGO ATTIVITA%0A---------------------%0AENERGIA: ${tk} kcal%0ALIQUIDI: ${water} cl%0A%0ADETTAGLIO CONSUMI:%0A${detail}`;
         window.location.href = `mailto:m8online@gmail.com?subject=${subject}&body=${body}`;
     }
