@@ -172,6 +172,10 @@
                 <div class="val" id="waterDisp">0</div>
             </div>
         </div>
+        <div style="display:flex; align-items:center; justify-content:center; gap:8px; margin-top:8px; font-size:0.7rem; color:#777;">
+            <span id="syncBtn" style="cursor:pointer; font-size:1rem;">☁️</span>
+            <span id="syncStatus"></span>
+        </div>
     </div>
 
     <div class="main-content">
@@ -182,6 +186,10 @@
         <div id="page-water" class="page" style="padding: 20px; box-sizing: border-box;">
             <div style="text-align: center; width: 100%; flex-shrink: 0;">
                 <b style="font-size: 1.2rem; letter-spacing: 1px; display: block; margin-bottom: 20px;">AGGIUNGI BEVUTA</b>
+                <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 15px;">
+                    <button class="btn" style="background:#9b59b6; width:auto; padding:0 25px; box-shadow: 0 4px 0 #8e44ad; font-size:1.1rem;" onclick="quickAddW(500)">500</button>
+                    <button class="btn" style="background:#9b59b6; width:auto; padding:0 25px; box-shadow: 0 4px 0 #8e44ad; font-size:1.1rem;" onclick="quickAddW(750)">750</button>
+                </div>
                 <div style="display: flex; gap: 10px; justify-content: center;">
                     <input type="number" id="wIn" placeholder="cl" inputmode="numeric">
                     <button class="btn" style="background:#2ecc71; width:auto; padding:0 30px; box-shadow: 0 4px 0 #27ae60;" onclick="addW()">OK</button>
@@ -210,45 +218,75 @@
         {id:'bib-7', n:'BIBBITONE 750', k:93}
     ];
 
-    let counts = JSON.parse(localStorage.getItem('bike_counts')) || {};
-    // Migrazione: unifica vecchie varianti PAPPONE in PAPPONE ENERGY (p-e)
-    const oldPappone = ['p-f','p-b','p-p','p-fi'];
-    let pMerged = 0;
-    oldPappone.forEach(id => { if(counts[id] !== undefined) { pMerged += counts[id]; delete counts[id]; } });
-    if(pMerged > 0) { counts['p-e'] = (counts['p-e']||0) + pMerged; }
-    snacks.forEach(s => { if(counts[s.id] === undefined) counts[s.id] = 0; });
+    // --- Modello dati: log di eventi (non contatori) + tombstones per la sync ---
+    // Ogni + su uno snack, ogni bevuta, ogni voce "ALTRO" è un evento con id univoco.
+    // Un merge tra device fa sempre un'unione per id: niente sovrascritture, niente azzeramenti accidentali.
+    // Le cancellazioni vengono registrate nei tombstones cosi la sync non "resuscita" una voce cancellata altrove.
+
+    function genId() { return Date.now() + '-' + Math.random().toString(36).slice(2, 8); }
+
+    let snackLog = JSON.parse(localStorage.getItem('bike_snack_log'));
+    if (snackLog === null) {
+        // Migrazione dai vecchi contatori (bike_counts) a eventi sintetici
+        snackLog = [];
+        let oldCounts = JSON.parse(localStorage.getItem('bike_counts')) || {};
+        const oldPappone = ['p-f', 'p-b', 'p-p', 'p-fi'];
+        let pMerged = 0;
+        oldPappone.forEach(id => { if (oldCounts[id] !== undefined) { pMerged += oldCounts[id]; delete oldCounts[id]; } });
+        if (pMerged > 0) { oldCounts['p-e'] = (oldCounts['p-e'] || 0) + pMerged; }
+        Object.keys(oldCounts).forEach(sid => {
+            const n = oldCounts[sid] || 0;
+            for (let i = 0; i < n; i++) snackLog.push({ id: sid + '-mig-' + i, sid: sid });
+        });
+    }
+
     let waterLog = JSON.parse(localStorage.getItem('bike_water_log'));
-    if(waterLog === null) {
+    if (waterLog === null) {
         // Migrazione dal vecchio totale unico (bike_water) a log di voci singole
         let oldTotal = parseInt(localStorage.getItem('bike_water')) || 0;
-        waterLog = oldTotal > 0 ? [{id: Date.now(), v: oldTotal}] : [];
+        waterLog = oldTotal > 0 ? [{ id: genId(), v: oldTotal }] : [];
     }
+
+    let tombstones = JSON.parse(localStorage.getItem('bike_tombstones')) || [];
     let water = 0;
 
     function save() {
-        localStorage.setItem('bike_counts', JSON.stringify(counts));
+        localStorage.setItem('bike_snack_log', JSON.stringify(snackLog));
         localStorage.setItem('bike_water_log', JSON.stringify(waterLog));
+        localStorage.setItem('bike_tombstones', JSON.stringify(tombstones));
         updateDisplay();
+        scheduleSync();
     }
 
     function updateDisplay() {
         let tk = 0;
+        const countMap = {};
+        snacks.forEach(s => countMap[s.id] = 0);
+        snackLog.forEach(e => {
+            if (e.sid === 'other') {
+                tk += e.k;
+            } else {
+                countMap[e.sid] = (countMap[e.sid] || 0) + 1;
+                const snk = snacks.find(s => s.id === e.sid);
+                if (snk) tk += snk.k;
+            }
+        });
         snacks.forEach(s => {
-            const el = document.getElementById('c-'+s.id);
-            if(el) el.innerText = counts[s.id];
-            tk += (counts[s.id] * s.k);
+            const el = document.getElementById('c-' + s.id);
+            if (el) el.innerText = countMap[s.id];
         });
         document.getElementById('kcalDisp').innerText = tk;
 
         water = waterLog.reduce((a, e) => a + e.v, 0);
         document.getElementById('waterDisp').innerText = water;
         renderWaterList();
+        renderOtherList();
     }
 
     function renderWaterList() {
         const wl = document.getElementById('water-list');
-        if(!wl) return;
-        if(waterLog.length === 0) {
+        if (!wl) return;
+        if (waterLog.length === 0) {
             wl.innerHTML = '<div style="text-align:center; color:#555; font-size:0.8rem; margin-top:15px;">Nessuna bevuta inserita</div>';
             return;
         }
@@ -257,9 +295,25 @@
             wl.innerHTML += `
                 <div class="row">
                     <div class="info"><b>${e.v} cl</b></div>
-                    <button class="btn btn-m" onclick="delW(${e.id})">✕</button>
+                    <button class="btn btn-m" onclick="delW('${e.id}')">✕</button>
                 </div>`;
         });
+    }
+
+    function renderOtherList() {
+        const ol = document.getElementById('other-list');
+        if (!ol) return;
+        const others = snackLog.filter(e => e.sid === 'other');
+        if (others.length === 0) { ol.innerHTML = ''; return; }
+        let html = '';
+        others.slice().reverse().forEach(e => {
+            html += `
+                <div class="row">
+                    <div class="info"><b>${e.n}</b><small>${e.k} kcal</small></div>
+                    <button class="btn btn-m" onclick="delOther('${e.id}')">✕</button>
+                </div>`;
+        });
+        ol.innerHTML = html;
     }
 
     const list = document.getElementById('snack-list');
@@ -269,11 +323,21 @@
                 <div class="info"><b>${s.n}</b><small>${s.k} kcal</small></div>
                 <div class="controls">
                     <button class="btn btn-m" onclick="change('${s.id}',-1)">-</button>
-                    <span class="num" id="c-${s.id}">${counts[s.id]}</span>
+                    <span class="num" id="c-${s.id}">0</span>
                     <button class="btn btn-p" onclick="change('${s.id}',1)">+</button>
                 </div>
             </div>`;
     });
+    list.innerHTML += `
+        <div class="row" style="flex-direction: column; align-items: stretch; gap: 10px;">
+            <b style="font-size:0.9rem;">ALTRO (kcal libere)</b>
+            <div style="display:flex; gap:8px;">
+                <input type="number" id="otherKcal" placeholder="kcal" inputmode="numeric" style="width:70px; padding:10px; font-size:1rem; border-radius:12px;">
+                <input type="text" id="otherLabel" placeholder="cosa? (opz.)" style="flex:1; padding:10px; font-size:0.9rem; border-radius:12px; background:#000; color:white; border:2px solid #444;">
+                <button class="btn btn-p" onclick="addOther()">+</button>
+            </div>
+        </div>
+        <div id="other-list"></div>`;
 
     function showPage(p) {
         document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
@@ -291,43 +355,198 @@
     }
 
     function change(id, d) {
-        if(d === -1 && counts[id] <= 0) return;
-        counts[id] += d;
+        if (d === 1) {
+            snackLog.push({ id: genId(), sid: id });
+        } else {
+            for (let i = snackLog.length - 1; i >= 0; i--) {
+                if (snackLog[i].sid === id) {
+                    tombstones.push(snackLog[i].id);
+                    snackLog.splice(i, 1);
+                    break;
+                }
+            }
+        }
         save();
     }
 
     function addW() {
         let v = parseInt(document.getElementById('wIn').value);
-        if(v) { 
-            waterLog.push({id: Date.now(), v: v});
-            document.getElementById('wIn').value=''; 
-            document.getElementById('wIn').blur(); 
-            save(); 
+        if (v) {
+            waterLog.push({ id: genId(), v: v });
+            document.getElementById('wIn').value = '';
+            document.getElementById('wIn').blur();
+            save();
         }
     }
 
+    function quickAddW(v) {
+        waterLog.push({ id: genId(), v: v });
+        save();
+    }
+
     function delW(id) {
-        waterLog = waterLog.filter(e => e.id !== id);
+        const idx = waterLog.findIndex(e => e.id === id);
+        if (idx > -1) { tombstones.push(waterLog[idx].id); waterLog.splice(idx, 1); }
+        save();
+    }
+
+    function addOther() {
+        let k = parseInt(document.getElementById('otherKcal').value);
+        let label = document.getElementById('otherLabel').value.trim() || 'Altro';
+        if (k) {
+            snackLog.push({ id: genId(), sid: 'other', k: k, n: label });
+            document.getElementById('otherKcal').value = '';
+            document.getElementById('otherLabel').value = '';
+            document.getElementById('otherKcal').blur();
+            save();
+        }
+    }
+
+    function delOther(id) {
+        const idx = snackLog.findIndex(e => e.id === id);
+        if (idx > -1) { tombstones.push(snackLog[idx].id); snackLog.splice(idx, 1); }
         save();
     }
 
     function exportMail() {
         let tk = document.getElementById('kcalDisp').innerText;
         let detail = "";
-        snacks.forEach(s => { if(counts[s.id]>0) detail += `- ${s.n}: ${counts[s.id]}%0A`; });
+        const countMap = {};
+        snackLog.forEach(e => { if (e.sid !== 'other') countMap[e.sid] = (countMap[e.sid] || 0) + 1; });
+        snacks.forEach(s => { if (countMap[s.id] > 0) detail += `- ${s.n}: ${countMap[s.id]}%0A`; });
+        const others = snackLog.filter(e => e.sid === 'other');
+        others.forEach(e => { detail += `- ${e.n}: ${e.k} kcal%0A`; });
         const subject = encodeURIComponent("Bike Stats Pro - Report");
         let body = `RIEPILOGO ATTIVITA%0A---------------------%0AENERGIA: ${tk} kcal%0ALIQUIDI: ${water} cl%0A%0ADETTAGLIO CONSUMI:%0A${detail}`;
         window.location.href = `mailto:m8online@gmail.com?subject=${subject}&body=${body}`;
     }
 
-    function resetData() {
-        if(confirm("Sei sicuro di voler AZZERARE tutto?")) {
-            localStorage.clear();
-            location.reload();
+    async function resetData() {
+        if (!confirm("Sei sicuro di voler AZZERARE tutto?")) return;
+        const pat = getPAT();
+        let wipeCloud = false;
+        if (pat) wipeCloud = confirm("Azzerare anche i dati sincronizzati su GitHub? (altrimenti al prossimo sync torneranno indietro dal cloud)");
+        localStorage.clear();
+        if (pat) setPAT(pat);
+        if (wipeCloud && pat) {
+            try {
+                const remote = await ghGetFile();
+                await ghPutFile({ snackLog: [], waterLog: [], tombstones: [] }, remote ? remote.sha : null);
+            } catch (e) { console.error(e); }
+        }
+        location.reload();
+    }
+
+    // --- Sync GitHub (Contents API su data.json, stesso pattern degli altri progetti MEM Software) ---
+    const GH_OWNER = 'AlleRock';
+    const GH_REPO = 'bikesnackcounter';
+    const GH_PATH = 'data.json';
+
+    function getPAT() { return localStorage.getItem('bike_pat') || ''; }
+    function setPAT(t) { localStorage.setItem('bike_pat', t); }
+
+    function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
+    function b64decode(str) { return decodeURIComponent(escape(atob(str))); }
+
+    async function ghGetFile() {
+        const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, {
+            headers: { 'Authorization': `token ${getPAT()}` }
+        });
+        if (res.status === 404) return null;
+        if (!res.ok) throw new Error('GH GET failed: ' + res.status);
+        const j = await res.json();
+        const content = JSON.parse(b64decode(j.content));
+        return { sha: j.sha, data: content };
+    }
+
+    async function ghPutFile(data, sha, retry = true) {
+        const body = { message: 'sync ' + new Date().toISOString(), content: b64encode(JSON.stringify(data)) };
+        if (sha) body.sha = sha;
+        const res = await fetch(`https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`, {
+            method: 'PUT',
+            headers: { 'Authorization': `token ${getPAT()}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (res.status === 409 && retry) {
+            const fresh = await ghGetFile();
+            return ghPutFile(data, fresh ? fresh.sha : null, false);
+        }
+        if (!res.ok) throw new Error('GH PUT failed: ' + res.status);
+        return res.json();
+    }
+
+    function mergeLog(localArr, remoteArr, tombSet) {
+        const map = new Map();
+        localArr.forEach(e => map.set(e.id, e));
+        remoteArr.forEach(e => { if (!map.has(e.id)) map.set(e.id, e); });
+        tombSet.forEach(id => map.delete(id));
+        return Array.from(map.values());
+    }
+
+    let statusTimer;
+    function setSyncStatus(txt) {
+        const el = document.getElementById('syncStatus');
+        if (!el) return;
+        el.innerText = txt;
+        clearTimeout(statusTimer);
+        if (txt !== '⏳') statusTimer = setTimeout(() => { el.innerText = ''; }, 2500);
+    }
+
+    let syncTimer = null;
+    function scheduleSync() {
+        if (!getPAT()) return;
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => syncNow(true), 2500);
+    }
+
+    async function syncNow(silent) {
+        if (!getPAT()) { if (!silent) promptPAT(); return; }
+        setSyncStatus('⏳');
+        try {
+            const remote = await ghGetFile();
+            const remoteData = remote ? remote.data : { snackLog: [], waterLog: [], tombstones: [] };
+            const tombSet = new Set([...tombstones, ...(remoteData.tombstones || [])]);
+            snackLog = mergeLog(snackLog, remoteData.snackLog || [], tombSet);
+            waterLog = mergeLog(waterLog, remoteData.waterLog || [], tombSet);
+            tombstones = Array.from(tombSet);
+            localStorage.setItem('bike_snack_log', JSON.stringify(snackLog));
+            localStorage.setItem('bike_water_log', JSON.stringify(waterLog));
+            localStorage.setItem('bike_tombstones', JSON.stringify(tombstones));
+            updateDisplay();
+            await ghPutFile({ snackLog, waterLog, tombstones }, remote ? remote.sha : null);
+            setSyncStatus('✓');
+        } catch (err) {
+            console.error(err);
+            setSyncStatus('⚠');
         }
     }
 
+    function promptPAT() {
+        const t = prompt('Incolla il Personal Access Token GitHub (fine-grained, Contents R/W su bikesnackcounter) per questo dispositivo:');
+        if (t && t.trim()) { setPAT(t.trim()); syncNow(false); }
+    }
+
+    (function setupSyncBtn() {
+        const btn = document.getElementById('syncBtn');
+        if (!btn) return;
+        let holdTimer;
+        const startHold = () => { holdTimer = setTimeout(() => {
+            if (confirm('Rimuovere il token salvato su questo dispositivo?')) {
+                localStorage.removeItem('bike_pat');
+                setSyncStatus('token rimosso');
+            }
+        }, 800); };
+        const cancelHold = () => clearTimeout(holdTimer);
+        btn.addEventListener('click', () => syncNow(false));
+        btn.addEventListener('touchstart', startHold);
+        btn.addEventListener('touchend', cancelHold);
+        btn.addEventListener('mousedown', startHold);
+        btn.addEventListener('mouseup', cancelHold);
+        btn.addEventListener('mouseleave', cancelHold);
+    })();
+
     updateDisplay();
+    if (getPAT()) syncNow(true);
 </script>
 </body>
 </html>
