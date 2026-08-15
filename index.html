@@ -6,6 +6,8 @@
     <title>Bike Stats Pro</title>
     
     <link rel="apple-touch-icon" href="icon.png?v=7">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#121212">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
@@ -547,6 +549,10 @@
 
     updateDisplay();
     if (getPAT()) syncNow(true);
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => console.error('SW registration failed:', err));
+    }
 </script>
 </body>
 </html>
